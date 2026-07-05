@@ -128,6 +128,19 @@
   .final-rank{font-family:var(--serif); font-size:20px; color:var(--text-muted); width:22px;}
   .final-name{font-weight:600; flex:1;}
   .final-score{font-family:var(--serif); font-size:22px; font-weight:700; color:var(--gold-bright);}
+  .my-role-badge{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    font-size:13.5px; font-weight:600; color:var(--text-light);
+    background:var(--ink-2); border:1px solid rgba(156,147,184,0.2);
+    border-radius:999px; padding:8px 16px; margin:0 auto 26px auto; width:fit-content;
+  }
+  .my-role-badge .dot{width:11px; height:11px; border-radius:50%; flex-shrink:0;}
+  .my-role-badge .dot.p1{background:var(--p1); box-shadow:0 0 8px var(--p1-glow);}
+  .my-role-badge .dot.p2{background:var(--p2); box-shadow:0 0 8px var(--p2-glow);}
+  .my-role-badge .dot.p3{background:var(--p3); box-shadow:0 0 8px var(--p3-glow);}
+  .my-role-badge .colorname.p1{color:var(--p1);}
+  .my-role-badge .colorname.p2{color:var(--p2);}
+  .my-role-badge .colorname.p3{color:var(--p3);}
   .footnote{text-align:center; color:var(--text-muted); font-size:12px; line-height:1.6; margin-top:18px; opacity:.75;}
 </style>
 </head>
@@ -149,6 +162,7 @@ const GAMES = 'numberduel3';
 const app = document.getElementById('app');
 const TOTAL_ROUNDS = 10;
 const ROLE_LABEL = { p1:'Hráč 1', p2:'Hráč 2', p3:'Hráč 3' };
+const ROLE_COLOR_NAME = { p1:'Červený', p2:'Modrý', p3:'Zelený' };
 
 let state = {
   screen: 'home',
@@ -173,7 +187,18 @@ function shell(inner){
     <p class="eyebrow">Tři hráči &middot; deset kol</p>
     <h1>Souboj čísel</h1>
     <p class="sub">Každé kolo vyberte číslo od 1 do 10. Nejvyšší číslo bere bod &mdash; každé číslo smíte použít jen jednou.</p>
+    ${renderMyRoleBadge()}
     ${inner}
+  `;
+}
+
+function renderMyRoleBadge(){
+  if(!state.role) return '';
+  return `
+    <div class="my-role-badge">
+      <span class="dot ${state.role}"></span>
+      Hraješ jako ${ROLE_LABEL[state.role]} &middot; <span class="colorname ${state.role}">${ROLE_COLOR_NAME[state.role]}</span>
+    </div>
   `;
 }
 
@@ -386,7 +411,8 @@ function renderGame(){
 }
 
 function scoreChip(role,d){
-  return `<div class="score-chip"><span class="score-dot ${role}"></span>${d.scores[role]}</div>`;
+  const short = { p1:'H1', p2:'H2', p3:'H3' }[role];
+  return `<div class="score-chip"><span class="score-dot ${role}"></span>${short}: ${d.scores[role]}</div>`;
 }
 function waitingDot(role,d){
   const ready = d.currentPicks[role] !== null;
