@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>Souboj čísel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,900&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --ink:#14101F;
+    --ink-2:#1D1830;
+    --ink-3:#26203D;
+    --gold:#C9A24B;
+    --gold-bright:#E0BD6E;
+    --text-light:#F2EEE4;
+    --text-muted:#9C93B8;
+    --p1:#FF5C5C;
+    --p1-glow:rgba(255,92,92,0.4);
+    --p2:#4FA8FF;
+    --p2-glow:rgba(79,168,255,0.4);
+    --p3:#66DE93;
+    --p3-glow:rgba(102,222,147,0.4);
+    --serif:'Fraunces', serif;
+    --sans:'Work Sans', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:radial-gradient(circle at 50% 0%, #201A34 0%, var(--ink) 60%);
+    color:var(--text-light);
+    font-family:var(--sans);
+    min-height:100vh;
+    display:flex; align-items:flex-start; justify-content:center;
+    padding:32px 14px;
+  }
+  .app{width:100%; max-width:560px;}
+  .eyebrow{text-transform:uppercase; letter-spacing:.18em; font-size:12px; color:var(--gold-bright); text-align:center; margin:0 0 8px 0;}
+  h1{font-family:var(--serif); font-weight:700; font-size:36px; text-align:center; margin:0 0 6px 0;}
+  .sub{text-align:center; color:var(--text-muted); font-size:15px; margin:0 0 30px 0; line-height:1.5;}
+  .card{
+    background:var(--ink-2); border:1px solid rgba(201,162,75,0.16);
+    border-radius:18px; padding:26px; margin-bottom:16px;
+    box-shadow:0 24px 60px -24px rgba(0,0,0,0.65);
+  }
+  .card h2{font-family:var(--serif); font-size:21px; font-weight:600; margin:0 0 4px 0;}
+  .card p.hint{color:var(--text-muted); font-size:13.5px; margin:0 0 18px 0; line-height:1.5;}
+  input[type=text]{
+    width:100%; background:var(--ink); border:1px solid rgba(156,147,184,0.28);
+    color:var(--text-light); border-radius:10px; padding:12px 14px;
+    font-family:var(--sans); font-size:15px; text-align:center;
+    text-transform:uppercase; letter-spacing:.1em;
+  }
+  input[type=text]:focus{outline:2px solid var(--gold); outline-offset:1px; border-color:transparent;}
+  button{
+    font-family:var(--sans); font-weight:700; font-size:15px; border-radius:10px;
+    border:none; padding:13px 20px; cursor:pointer; transition:transform .12s ease, filter .12s ease;
+  }
+  button:hover{filter:brightness(1.08);}
+  button:active{transform:scale(0.98);}
+  button:disabled{opacity:.35; cursor:not-allowed;}
+  .btn-primary{background:linear-gradient(180deg, var(--gold-bright), var(--gold)); color:#241705; width:100%;}
+  .btn-secondary{background:transparent; color:var(--text-light); border:1px solid rgba(156,147,184,0.32); width:100%;}
+  .btn-ghost{background:transparent; color:var(--text-muted); font-size:13px; padding:6px 4px;}
+  .divider{display:flex; align-items:center; gap:12px; color:var(--text-muted); font-size:12px; text-transform:uppercase; letter-spacing:.12em; margin:24px 0;}
+  .divider::before, .divider::after{content:''; flex:1; height:1px; background:rgba(156,147,184,0.2);}
+  .code-display{
+    font-family:var(--serif); font-size:34px; letter-spacing:.12em; text-align:center;
+    color:var(--gold-bright); background:var(--ink); border:1px dashed rgba(201,162,75,0.4);
+    border-radius:12px; padding:16px; margin:14px 0; user-select:all;
+  }
+  .error-text{color:var(--p1); font-size:13px; margin-top:-6px; margin-bottom:14px; display:none;}
+
+  .slot-row{
+    display:flex; align-items:center; gap:12px; padding:13px 14px;
+    background:var(--ink); border:1px solid rgba(156,147,184,0.18);
+    border-radius:12px; margin-bottom:10px;
+  }
+  .slot-dot{width:14px; height:14px; border-radius:50%; flex-shrink:0; border:2px solid rgba(156,147,184,0.4); background:transparent;}
+  .slot-dot.filled.p1{background:var(--p1); border-color:var(--p1); box-shadow:0 0 10px var(--p1-glow);}
+  .slot-dot.filled.p2{background:var(--p2); border-color:var(--p2); box-shadow:0 0 10px var(--p2-glow);}
+  .slot-dot.filled.p3{background:var(--p3); border-color:var(--p3); box-shadow:0 0 10px var(--p3-glow);}
+  .slot-label{font-size:14.5px; font-weight:600;}
+  .slot-status{margin-left:auto; font-size:12.5px; color:var(--text-muted);}
+
+  .hud{display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;}
+  .round-badge{font-family:var(--serif); font-size:15px; color:var(--gold-bright); font-weight:600;}
+  .scoreboard{display:flex; gap:14px;}
+  .score-chip{display:flex; align-items:center; gap:6px; font-size:13.5px; font-weight:600;}
+  .score-dot{width:10px; height:10px; border-radius:50%;}
+  .score-dot.p1{background:var(--p1);} .score-dot.p2{background:var(--p2);} .score-dot.p3{background:var(--p3);}
+
+  .num-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:20px;}
+  .num-btn{
+    aspect-ratio:1; background:var(--ink); border:2px solid rgba(156,147,184,0.25);
+    color:var(--text-light); font-family:var(--serif); font-size:22px; font-weight:600;
+    border-radius:12px; display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .num-btn.selected{border-color:var(--gold-bright); background:rgba(201,162,75,0.14); color:var(--gold-bright);}
+  .num-btn.used{opacity:.25; text-decoration:line-through;}
+  .confirm-row{margin-bottom:6px;}
+  .waiting-players{display:flex; gap:16px; justify-content:center; margin-top:16px;}
+  .wp-item{display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12px; color:var(--text-muted);}
+  .wp-dot{width:16px; height:16px; border-radius:50%; border:2px solid rgba(156,147,184,0.35); background:transparent; transition:all .2s ease;}
+  .wp-dot.ready.p1{background:var(--p1); border-color:var(--p1); box-shadow:0 0 10px var(--p1-glow);}
+  .wp-dot.ready.p2{background:var(--p2); border-color:var(--p2); box-shadow:0 0 10px var(--p2-glow);}
+  .wp-dot.ready.p3{background:var(--p3); border-color:var(--p3); box-shadow:0 0 10px var(--p3-glow);}
+
+  .reveal-row{display:flex; gap:10px; margin-bottom:20px;}
+  .reveal-card{
+    flex:1; background:var(--ink); border-radius:14px; padding:16px 8px;
+    text-align:center; border:2px solid rgba(156,147,184,0.18); position:relative;
+  }
+  .reveal-card.winner{border-color:var(--gold-bright); box-shadow:0 0 20px rgba(201,162,75,0.25);}
+  .reveal-card .who{font-size:12px; color:var(--text-muted); margin-bottom:8px; font-weight:600;}
+  .reveal-card .num{font-family:var(--serif); font-size:34px; font-weight:700;}
+  .reveal-card .pt{font-size:12px; color:var(--gold-bright); margin-top:6px; font-weight:600; min-height:16px;}
+  .reveal-card.p1 .num{color:var(--p1);} .reveal-card.p2 .num{color:var(--p2);} .reveal-card.p3 .num{color:var(--p3);}
+  .advance-hint{text-align:center; color:var(--text-muted); font-size:13px; margin-bottom:4px;}
+
+  .final-row{display:flex; flex-direction:column; gap:10px; margin-bottom:20px;}
+  .final-item{
+    display:flex; align-items:center; gap:12px; padding:14px 16px;
+    background:var(--ink); border-radius:12px; border:1px solid rgba(156,147,184,0.18);
+  }
+  .final-item.top{border-color:var(--gold-bright); box-shadow:0 0 18px rgba(201,162,75,0.22);}
+  .final-rank{font-family:var(--serif); font-size:20px; color:var(--text-muted); width:22px;}
+  .final-name{font-weight:600; flex:1;}
+  .final-score{font-family:var(--serif); font-size:22px; font-weight:700; color:var(--gold-bright);}
+  .footnote{text-align:center; color:var(--text-muted); font-size:12px; line-height:1.6; margin-top:18px; opacity:.75;}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyB9LZu9ExDcuzpdrD0tjLoiHFI6amu2cik",
+  authDomain: "test-8c6fe.firebaseapp.com",
+  projectId: "test-8c6fe",
+  storageBucket: "test-8c6fe.firebasestorage.app",
+  messagingSenderId: "419426633105",
+  appId: "1:419426633105:web:91d04d4af75d7e17510630"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const GAMES = 'numberduel3';
+const app = document.getElementById('app');
+const TOTAL_ROUNDS = 10;
+const ROLE_LABEL = { p1:'Hráč 1', p2:'Hráč 2', p3:'Hráč 3' };
+
+let state = {
+  screen: 'home',
+  code: null,
+  role: null,
+  unsubscribe: null,
+  data: null,
+  selectedNumber: null,
+  revealTimerScheduled: false,
+  lastRoundSeenPlaying: 0
+};
+
+function genCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let c = '';
+  for(let i=0;i<5;i++) c += chars[Math.floor(Math.random()*chars.length)];
+  return c;
+}
+
+function shell(inner){
+  app.innerHTML = `
+    <p class="eyebrow">Tři hráči &middot; deset kol</p>
+    <h1>Souboj čísel</h1>
+    <p class="sub">Každé kolo vyberte číslo od 1 do 10. Nejvyšší číslo bere bod &mdash; každé číslo smíte použít jen jednou.</p>
+    ${inner}
+  `;
+}
+
+// ---------------- HOME ----------------
+function renderHome(){
+  shell(`
+    <div class="card">
+      <h2>Založit hru</h2>
+      <p class="hint">Vytvoříš lobby pro tři hráče a dostaneš kód. Ty budeš <span style="color:var(--p1)">Hráč 1</span> a spouštíš hru.</p>
+      <button class="btn-primary" onclick="createLobby()">Založit lobby</button>
+    </div>
+    <div class="divider">nebo</div>
+    <div class="card">
+      <h2>Mám kód</h2>
+      <p class="hint">Připojíš se jako druhý nebo třetí hráč.</p>
+      <div class="field" style="margin-bottom:14px;">
+        <input type="text" id="joinCodeInput" placeholder="např. K7QX2" maxlength="5">
+      </div>
+      <button class="btn-secondary" onclick="submitJoinCode()">Připojit se</button>
+      <p class="error-text" id="joinError"></p>
+    </div>
+  `);
+}
+
+async function createLobby(){
+  const code = genCode();
+  try{
+    await db.collection(GAMES).doc(code).set({
+      players: { p1: {joined:true}, p2: {joined:false}, p3: {joined:false} },
+      status: 'lobby',
+      round: 1,
+      usedNumbers: { p1:[], p2:[], p3:[] },
+      currentPicks: { p1:null, p2:null, p3:null },
+      scores: { p1:0, p2:0, p3:0 },
+      lastRoundResult: null,
+      resolvedRound: 0,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(e){
+    alert('Nepodařilo se založit hru: ' + (e && e.message ? e.message : e));
+    return;
+  }
+  state.code = code;
+  state.role = 'p1';
+  state.screen = 'lobby';
+  render();
+  listenToRoom();
+}
+
+async function submitJoinCode(){
+  const val = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+  const errEl = document.getElementById('joinError');
+  errEl.style.display = 'none';
+  if(!val) return;
+  const ref = db.collection(GAMES).doc(val);
+  const snap = await ref.get();
+  if(!snap.exists){
+    errEl.textContent = 'Kód ' + val + ' jsme nenašli.';
+    errEl.style.display = 'block';
+    return;
+  }
+  const data = snap.data();
+  let myRole = null;
+  if(!data.players.p2.joined) myRole = 'p2';
+  else if(!data.players.p3.joined) myRole = 'p3';
+  if(!myRole){
+    errEl.textContent = 'Tahle hra už má tři hráče.';
+    errEl.style.display = 'block';
+    return;
+  }
+  await ref.set({ players: { [myRole]: {joined:true} } }, { merge:true });
+  state.code = val;
+  state.role = myRole;
+  state.screen = 'lobby';
+  render();
+  listenToRoom();
+}
+
+function leaveToHome(){
+  if(state.unsubscribe) state.unsubscribe();
+  state = { screen:'home', code:null, role:null, unsubscribe:null, data:null,
+    selectedNumber:null, revealTimerScheduled:false, lastRoundSeenPlaying:0 };
+  render();
+}
+
+function listenToRoom(){
+  if(state.unsubscribe) state.unsubscribe();
+  state.unsubscribe = db.collection(GAMES).doc(state.code).onSnapshot(snap=>{
+    if(!snap.exists) return;
+    state.data = snap.data();
+    onRoomUpdate();
+  }, err=>{ console.error(err); });
+}
+
+function onRoomUpdate(){
+  const d = state.data;
+  if(d.status === 'lobby'){
+    state.screen = 'lobby';
+    render();
+    return;
+  }
+  if(d.status === 'playing'){
+    if(d.round !== state.lastRoundSeenPlaying){
+      state.lastRoundSeenPlaying = d.round;
+      state.selectedNumber = null;
+      state.revealTimerScheduled = false;
+    }
+    state.screen = 'game';
+    render();
+    maybeResolveRound();
+    return;
+  }
+  if(d.status === 'reveal'){
+    state.screen = 'game';
+    render();
+    scheduleAdvance();
+    return;
+  }
+  if(d.status === 'finished'){
+    state.screen = 'final';
+    render();
+    return;
+  }
+}
+
+// ---------------- LOBBY ----------------
+function renderLobby(){
+  const d = state.data;
+  const p2ok = d && d.players.p2.joined;
+  const p3ok = d && d.players.p3.joined;
+  const canStart = p2ok && p3ok;
+  shell(`
+    <div class="card">
+      <h2>Kód hry</h2>
+      <p class="hint">Pošli kód dalším dvěma hráčům, ať se připojí.</p>
+      <div class="code-display">${state.code}</div>
+      ${slotRow('p1', true)}
+      ${slotRow('p2', p2ok)}
+      ${slotRow('p3', p3ok)}
+      ${state.role==='p1' ? `
+        <button class="btn-primary" id="startBtn" ${canStart?'':'disabled'} onclick="startGame()">
+          ${canStart ? 'Spustit hru' : 'Čeká se na hráče…'}
+        </button>
+      ` : `<p class="hint" style="text-align:center; margin:8px 0 0 0;">Čeká se, až Hráč 1 spustí hru…</p>`}
+    </div>
+    <button class="btn-ghost" onclick="leaveToHome()">&larr; Odejít</button>
+  `);
+}
+
+function slotRow(role, filled){
+  const isMe = state.role === role;
+  return `
+    <div class="slot-row">
+      <span class="slot-dot ${filled?'filled '+role:''}"></span>
+      <span class="slot-label">${ROLE_LABEL[role]}${isMe?' (ty)':''}</span>
+      <span class="slot-status">${filled ? 'Připojen' : 'Čeká se…'}</span>
+    </div>
+  `;
+}
+
+async function startGame(){
+  await db.collection(GAMES).doc(state.code).set({
+    status:'playing', round:1,
+    usedNumbers:{p1:[],p2:[],p3:[]},
+    currentPicks:{p1:null,p2:null,p3:null},
+    scores:{p1:0,p2:0,p3:0},
+    lastRoundResult:null, resolvedRound:0
+  }, { merge:true });
+}
+
+// ---------------- GAME ----------------
+function renderGame(){
+  const d = state.data;
+  if(d.status === 'reveal'){ renderReveal(); return; }
+
+  const myUsed = d.usedNumbers[state.role] || [];
+  const myConfirmed = d.currentPicks[state.role] !== null;
+  const nums = [];
+  for(let n=1;n<=10;n++){
+    const used = myUsed.includes(n);
+    const sel = state.selectedNumber === n;
+    nums.push(`
+      <button class="num-btn ${sel?'selected':''} ${used?'used':''}"
+        ${used || myConfirmed ? 'disabled' : ''}
+        onclick="selectNumber(${n})">${n}</button>
+    `);
+  }
+
+  shell(`
+    <div class="card">
+      <div class="hud">
+        <div class="round-badge">Kolo ${d.round} / ${TOTAL_ROUNDS}</div>
+        <div class="scoreboard">
+          ${scoreChip('p1',d)}${scoreChip('p2',d)}${scoreChip('p3',d)}
+        </div>
+      </div>
+      <div class="num-grid">${nums.join('')}</div>
+      ${myConfirmed ? `
+        <p class="hint" style="text-align:center;">Číslo potvrzeno. Čeká se na ostatní…</p>
+        <div class="waiting-players">
+          ${waitingDot('p1',d)}${waitingDot('p2',d)}${waitingDot('p3',d)}
+        </div>
+      ` : `
+        <div class="confirm-row">
+          <button class="btn-primary" ${state.selectedNumber===null?'disabled':''} onclick="confirmNumber()">Potvrdit výběr</button>
+        </div>
+      `}
+    </div>
+  `);
+}
+
+function scoreChip(role,d){
+  return `<div class="score-chip"><span class="score-dot ${role}"></span>${d.scores[role]}</div>`;
+}
+function waitingDot(role,d){
+  const ready = d.currentPicks[role] !== null;
+  return `<div class="wp-item"><div class="wp-dot ${ready?'ready '+role:''}"></div>${ROLE_LABEL[role]}</div>`;
+}
+
+function selectNumber(n){
+  state.selectedNumber = n;
+  render();
+}
+
+async function confirmNumber(){
+  if(state.selectedNumber === null) return;
+  const n = state.selectedNumber;
+  await db.collection(GAMES).doc(state.code).set({
+    currentPicks: { [state.role]: n }
+  }, { merge:true });
+}
+
+function renderReveal(){
+  const d = state.data;
+  const res = d.lastRoundResult;
+  const cards = ['p1','p2','p3'].map(role=>{
+    const isWinner = res && res.winners.includes(role);
+    return `
+      <div class="reveal-card ${role} ${isWinner?'winner':''}">
+        <div class="who">${ROLE_LABEL[role]}</div>
+        <div class="num">${res ? res.picks[role] : '-'}</div>
+        <div class="pt">${isWinner ? '+1 bod' : ''}</div>
+      </div>
+    `;
+  }).join('');
+  shell(`
+    <div class="card">
+      <div class="hud">
+        <div class="round-badge">Kolo ${res ? res.round : d.round} / ${TOTAL_ROUNDS}</div>
+        <div class="scoreboard">${scoreChip('p1',d)}${scoreChip('p2',d)}${scoreChip('p3',d)}</div>
+      </div>
+      <div class="reveal-row">${cards}</div>
+      <p class="advance-hint">${d.round >= TOTAL_ROUNDS ? 'Sčítáme celkové skóre…' : 'Další kolo za chvíli…'}</p>
+    </div>
+  `);
+}
+
+// ---------------- resolution logic (transactions) ----------------
+async function maybeResolveRound(){
+  const d = state.data;
+  if(!d || d.status !== 'playing') return;
+  const picks = d.currentPicks;
+  if(picks.p1===null || picks.p2===null || picks.p3===null) return;
+  const expectedRound = d.round;
+  try{
+    await db.runTransaction(async (tx)=>{
+      const ref = db.collection(GAMES).doc(state.code);
+      const fresh = await tx.get(ref);
+      if(!fresh.exists) return;
+      const fd = fresh.data();
+      if(fd.status !== 'playing' || fd.round !== expectedRound) return;
+      const p = fd.currentPicks;
+      if(p.p1===null || p.p2===null || p.p3===null) return;
+      const max = Math.max(p.p1, p.p2, p.p3);
+      const winners = ['p1','p2','p3'].filter(r=>p[r]===max);
+      const newScores = Object.assign({}, fd.scores);
+      winners.forEach(r=>{ newScores[r] = (newScores[r]||0) + 1; });
+      const newUsed = {
+        p1: fd.usedNumbers.p1.concat([p.p1]),
+        p2: fd.usedNumbers.p2.concat([p.p2]),
+        p3: fd.usedNumbers.p3.concat([p.p3])
+      };
+      tx.update(ref, {
+        status: 'reveal',
+        scores: newScores,
+        usedNumbers: newUsed,
+        lastRoundResult: { round: expectedRound, picks: {p1:p.p1,p2:p.p2,p3:p.p3}, winners },
+        resolvedRound: expectedRound
+      });
+    });
+  }catch(e){ console.error(e); }
+}
+
+function scheduleAdvance(){
+  if(state.revealTimerScheduled) return;
+  state.revealTimerScheduled = true;
+  setTimeout(()=>{ attemptAdvance(); }, 3400);
+}
+
+async function attemptAdvance(){
+  const expectedRound = state.data ? state.data.round : null;
+  try{
+    await db.runTransaction(async (tx)=>{
+      const ref = db.collection(GAMES).doc(state.code);
+      const fresh = await tx.get(ref);
+      if(!fresh.exists) return;
+      const fd = fresh.data();
+      if(fd.status !== 'reveal' || fd.round !== expectedRound) return;
+      if(fd.round >= TOTAL_ROUNDS){
+        tx.update(ref, { status:'finished' });
+      } else {
+        tx.update(ref, {
+          status:'playing',
+          round: fd.round + 1,
+          currentPicks: {p1:null,p2:null,p3:null}
+        });
+      }
+    });
+  }catch(e){ console.error(e); }
+}
+
+// ---------------- FINAL ----------------
+function renderFinal(){
+  const d = state.data;
+  const rows = ['p1','p2','p3'].map(r=>({role:r, score:d.scores[r]}));
+  rows.sort((a,b)=>b.score-a.score);
+  const topScore = rows[0].score;
+  const list = rows.map((r,i)=>`
+    <div class="final-item ${r.score===topScore?'top':''}">
+      <div class="final-rank">${i+1}.</div>
+      <span class="score-dot ${r.role}" style="margin-right:2px;"></span>
+      <div class="final-name">${ROLE_LABEL[r.role]}${r.role===state.role?' (ty)':''}</div>
+      <div class="final-score">${r.score}</div>
+    </div>
+  `).join('');
+  shell(`
+    <div class="card">
+      <h2 style="text-align:center;">Konec hry</h2>
+      <div class="final-row" style="margin-top:16px;">${list}</div>
+      <button class="btn-primary" onclick="playAgain()">Hrát znovu</button>
+      <div style="height:8px"></div>
+      <button class="btn-ghost" onclick="leaveToHome()" style="width:100%; text-align:center;">Odejít domů</button>
+    </div>
+    <p class="footnote">Data běží na tvé vlastní Firebase databázi.</p>
+  `);
+}
+
+async function playAgain(){
+  await db.collection(GAMES).doc(state.code).set({
+    status:'playing', round:1,
+    usedNumbers:{p1:[],p2:[],p3:[]},
+    currentPicks:{p1:null,p2:null,p3:null},
+    scores:{p1:0,p2:0,p3:0},
+    lastRoundResult:null, resolvedRound:0
+  }, { merge:true });
+}
+
+// ---------------- render dispatch ----------------
+function render(){
+  if(state.screen==='home') return renderHome();
+  if(state.screen==='lobby') return renderLobby();
+  if(state.screen==='game') return renderGame();
+  if(state.screen==='final') return renderFinal();
+}
+
+render();
+</script>
+</body>
+</html>
