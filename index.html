@@ -172,8 +172,13 @@ let state = {
   data: null,
   selectedNumber: null,
   revealTimerScheduled: false,
-  lastRoundSeenPlaying: 0
+  lastRoundSeenPlaying: 0,
+  newGameCount: 3
 };
+
+function getRoles(playerCount){
+  return playerCount === 2 ? ['p1','p2'] : ['p1','p2','p3'];
+}
 
 function genCode(){
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -184,7 +189,7 @@ function genCode(){
 
 function shell(inner){
   app.innerHTML = `
-    <p class="eyebrow">Tři hráči &middot; deset kol</p>
+    <p class="eyebrow">2 nebo 3 hráči &middot; deset kol</p>
     <h1>Souboj čísel</h1>
     <p class="sub">Každé kolo vyberte číslo od 1 do 10. Nejvyšší číslo bere bod &mdash; každé číslo smíte použít jen jednou.</p>
     ${renderMyRoleBadge()}
@@ -207,13 +212,17 @@ function renderHome(){
   shell(`
     <div class="card">
       <h2>Založit hru</h2>
-      <p class="hint">Vytvoříš lobby pro tři hráče a dostaneš kód. Ty budeš <span style="color:var(--p1)">Hráč 1</span> a spouštíš hru.</p>
+      <p class="hint">Vyber, jestli hrajete dva nebo tři, a dostaneš kód. Ty budeš <span style="color:var(--p1)">Hráč 1</span> a spouštíš hru.</p>
+      <div class="role-toggle" style="display:flex; gap:10px; margin-bottom:18px;">
+        <div class="count-btn ${state.newGameCount===2?'active':''}" onclick="setNewGameCount(2)" style="${countBtnStyle(state.newGameCount===2)}">2 hráči</div>
+        <div class="count-btn ${state.newGameCount===3?'active':''}" onclick="setNewGameCount(3)" style="${countBtnStyle(state.newGameCount===3)}">3 hráči</div>
+      </div>
       <button class="btn-primary" onclick="createLobby()">Založit lobby</button>
     </div>
     <div class="divider">nebo</div>
     <div class="card">
       <h2>Mám kód</h2>
-      <p class="hint">Připojíš se jako druhý nebo třetí hráč.</p>
+      <p class="hint">Připojíš se jako další hráč.</p>
       <div class="field" style="margin-bottom:14px;">
         <input type="text" id="joinCodeInput" placeholder="např. K7QX2" maxlength="5">
       </div>
@@ -223,10 +232,24 @@ function renderHome(){
   `);
 }
 
+function countBtnStyle(active){
+  return `flex:1; text-align:center; padding:12px; border-radius:10px; cursor:pointer; font-weight:600;
+    border:1px solid ${active ? 'var(--gold)' : 'rgba(156,147,184,0.25)'};
+    background:${active ? 'rgba(201,162,75,0.1)' : 'var(--ink)'};
+    color:${active ? 'var(--gold-bright)' : 'var(--text-muted)'};`;
+}
+
+function setNewGameCount(n){
+  state.newGameCount = n;
+  render();
+}
+
 async function createLobby(){
   const code = genCode();
+  const count = state.newGameCount === 2 ? 2 : 3;
   try{
     await db.collection(GAMES).doc(code).set({
+      playerCount: count,
       players: { p1: {joined:true}, p2: {joined:false}, p3: {joined:false} },
       status: 'lobby',
       round: 1,
@@ -261,11 +284,14 @@ async function submitJoinCode(){
     return;
   }
   const data = snap.data();
+  const roles = getRoles(data.playerCount || 3);
   let myRole = null;
-  if(!data.players.p2.joined) myRole = 'p2';
-  else if(!data.players.p3.joined) myRole = 'p3';
+  for(const r of roles){
+    if(r === 'p1') continue;
+    if(!data.players[r].joined){ myRole = r; break; }
+  }
   if(!myRole){
-    errEl.textContent = 'Tahle hra už má tři hráče.';
+    errEl.textContent = 'Tahle hra už má plný počet hráčů.';
     errEl.style.display = 'block';
     return;
   }
@@ -280,7 +306,7 @@ async function submitJoinCode(){
 function leaveToHome(){
   if(state.unsubscribe) state.unsubscribe();
   state = { screen:'home', code:null, role:null, unsubscribe:null, data:null,
-    selectedNumber:null, revealTimerScheduled:false, lastRoundSeenPlaying:0 };
+    selectedNumber:null, revealTimerScheduled:false, lastRoundSeenPlaying:0, newGameCount:3 };
   render();
 }
 
@@ -327,17 +353,15 @@ function onRoomUpdate(){
 // ---------------- LOBBY ----------------
 function renderLobby(){
   const d = state.data;
-  const p2ok = d && d.players.p2.joined;
-  const p3ok = d && d.players.p3.joined;
-  const canStart = p2ok && p3ok;
+  const roles = getRoles(d ? d.playerCount : 3);
+  const canStart = roles.slice(1).every(r => d && d.players[r].joined);
+  const slots = roles.map(r => slotRow(r, r==='p1' ? true : (d && d.players[r].joined))).join('');
   shell(`
     <div class="card">
       <h2>Kód hry</h2>
-      <p class="hint">Pošli kód dalším dvěma hráčům, ať se připojí.</p>
+      <p class="hint">${roles.length-1===1 ? 'Pošli kód druhému hráči, ať se připojí.' : 'Pošli kód dalším dvěma hráčům, ať se připojí.'}</p>
       <div class="code-display">${state.code}</div>
-      ${slotRow('p1', true)}
-      ${slotRow('p2', p2ok)}
-      ${slotRow('p3', p3ok)}
+      ${slots}
       ${state.role==='p1' ? `
         <button class="btn-primary" id="startBtn" ${canStart?'':'disabled'} onclick="startGame()">
           ${canStart ? 'Spustit hru' : 'Čeká se na hráče…'}
@@ -387,19 +411,20 @@ function renderGame(){
     `);
   }
 
+  const roles = getRoles(d.playerCount);
   shell(`
     <div class="card">
       <div class="hud">
         <div class="round-badge">Kolo ${d.round} / ${TOTAL_ROUNDS}</div>
         <div class="scoreboard">
-          ${scoreChip('p1',d)}${scoreChip('p2',d)}${scoreChip('p3',d)}
+          ${roles.map(r=>scoreChip(r,d)).join('')}
         </div>
       </div>
       <div class="num-grid">${nums.join('')}</div>
       ${myConfirmed ? `
         <p class="hint" style="text-align:center;">Číslo potvrzeno. Čeká se na ostatní…</p>
         <div class="waiting-players">
-          ${waitingDot('p1',d)}${waitingDot('p2',d)}${waitingDot('p3',d)}
+          ${roles.map(r=>waitingDot(r,d)).join('')}
         </div>
       ` : `
         <div class="confirm-row">
@@ -435,7 +460,8 @@ async function confirmNumber(){
 function renderReveal(){
   const d = state.data;
   const res = d.lastRoundResult;
-  const cards = ['p1','p2','p3'].map(role=>{
+  const roles = getRoles(d.playerCount);
+  const cards = roles.map(role=>{
     const isWinner = res && res.winners.includes(role);
     return `
       <div class="reveal-card ${role} ${isWinner?'winner':''}">
@@ -449,7 +475,7 @@ function renderReveal(){
     <div class="card">
       <div class="hud">
         <div class="round-badge">Kolo ${res ? res.round : d.round} / ${TOTAL_ROUNDS}</div>
-        <div class="scoreboard">${scoreChip('p1',d)}${scoreChip('p2',d)}${scoreChip('p3',d)}</div>
+        <div class="scoreboard">${roles.map(r=>scoreChip(r,d)).join('')}</div>
       </div>
       <div class="reveal-row">${cards}</div>
       <p class="advance-hint">${d.round >= TOTAL_ROUNDS ? 'Sčítáme celkové skóre…' : 'Další kolo za chvíli…'}</p>
@@ -461,8 +487,9 @@ function renderReveal(){
 async function maybeResolveRound(){
   const d = state.data;
   if(!d || d.status !== 'playing') return;
+  const roles = getRoles(d.playerCount);
   const picks = d.currentPicks;
-  if(picks.p1===null || picks.p2===null || picks.p3===null) return;
+  if(roles.some(r => picks[r] === null)) return;
   const expectedRound = d.round;
   try{
     await db.runTransaction(async (tx)=>{
@@ -471,22 +498,22 @@ async function maybeResolveRound(){
       if(!fresh.exists) return;
       const fd = fresh.data();
       if(fd.status !== 'playing' || fd.round !== expectedRound) return;
+      const activeRoles = getRoles(fd.playerCount);
       const p = fd.currentPicks;
-      if(p.p1===null || p.p2===null || p.p3===null) return;
-      const max = Math.max(p.p1, p.p2, p.p3);
-      const winners = ['p1','p2','p3'].filter(r=>p[r]===max);
+      if(activeRoles.some(r => p[r] === null)) return;
+      const max = Math.max(...activeRoles.map(r=>p[r]));
+      const winners = activeRoles.filter(r=>p[r]===max);
       const newScores = Object.assign({}, fd.scores);
       winners.forEach(r=>{ newScores[r] = (newScores[r]||0) + 1; });
-      const newUsed = {
-        p1: fd.usedNumbers.p1.concat([p.p1]),
-        p2: fd.usedNumbers.p2.concat([p.p2]),
-        p3: fd.usedNumbers.p3.concat([p.p3])
-      };
+      const newUsed = Object.assign({}, fd.usedNumbers);
+      activeRoles.forEach(r=>{ newUsed[r] = fd.usedNumbers[r].concat([p[r]]); });
+      const picksSnapshot = {};
+      activeRoles.forEach(r=>{ picksSnapshot[r] = p[r]; });
       tx.update(ref, {
         status: 'reveal',
         scores: newScores,
         usedNumbers: newUsed,
-        lastRoundResult: { round: expectedRound, picks: {p1:p.p1,p2:p.p2,p3:p.p3}, winners },
+        lastRoundResult: { round: expectedRound, picks: picksSnapshot, winners },
         resolvedRound: expectedRound
       });
     });
@@ -524,7 +551,8 @@ async function attemptAdvance(){
 // ---------------- FINAL ----------------
 function renderFinal(){
   const d = state.data;
-  const rows = ['p1','p2','p3'].map(r=>({role:r, score:d.scores[r]}));
+  const roles = getRoles(d.playerCount);
+  const rows = roles.map(r=>({role:r, score:d.scores[r]}));
   rows.sort((a,b)=>b.score-a.score);
   const topScore = rows[0].score;
   const list = rows.map((r,i)=>`
